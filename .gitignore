@@ -1,0 +1,33 @@
+# Secrets
+bypy.token.json
+bypy.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime and local state
+.bypy_runtime/
+.bdpan_snapshots/
+.tmp/
+.tmp_home_*/
+tmp_local_reconcile/
+
+# Build artifacts
+dist/
+*.tar.gz
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Git / patch leftovers
+*.orig
+*.rej
