@@ -1,53 +1,146 @@
-# 百度网盘工具套件
+# baidupan-skill-suite
 
-打包日期：2026-04-22
+一组面向 Codex / agent 工作流的百度网盘技能与脚本，覆盖：
 
-## 包含内容
+- 目录浏览与传输
+- 目录监视与结构比较
+- 本地 / 网盘、网盘 / 网盘差异对账
+- 归档优先的安全整理流程
+- manifest 规划、验证、预览与执行
 
-### 技能目录 (12 个)
-1. **bypy-baidu-netdisk** - 基础认证技能
-2. **bypy-enhanced** - 增强版命令行工具（主力使用）
-3. **baidupan-monitor** - 目录监控技能（快照 / diff / watch）
-4. **baidupan-sync** - 本地与网盘同步规划技能
-5. **baidupan-cleanup** - 大文件 / 旧文件 / 重复候选分析技能
-6. **baidupan-reconcile** - 本地 / 网盘、网盘 / 网盘差异对账技能
-7. **baidupan-fs** - 远端文件系统操作规划技能
-8. **baidupan-index** - 离线索引与查询技能
-9. **baidupan-archive** - 归档计划技能
-10. **baidupan-verify** - manifest 前置验证技能
-11. **baidupan-batch-runner** - manifest 汇总与 runbook 技能
-12. **baidupan-apply** - manifest 执行器技能（默认预览，显式确认执行）
+这不是单个 skill，而是一整套 skill 组。
 
-### Token 文件
-- `bypy.token.json` - 百度网盘访问令牌
+## 能力概览
 
-## 使用方法
+当前包含 12 个技能目录：
 
-### 在 Windows / Linux 中使用
+1. `bypy-baidu-netdisk`  
+   基础认证与总控入口。
+2. `bypy-enhanced`  
+   增强版只读与传输工具。
+3. `baidupan-monitor`  
+   快照、diff、watch、tree、compare。
+4. `baidupan-sync`  
+   本地与网盘同步规划。
+5. `baidupan-cleanup`  
+   大文件、旧文件、重复候选、空目录分析。
+6. `baidupan-reconcile`  
+   本地 / 网盘、网盘 / 网盘差异对账。
+7. `baidupan-fs`  
+   `mkdir/move/copy/rename/archive` manifest 规划。
+8. `baidupan-index`  
+   本地或网盘目录离线索引。
+9. `baidupan-archive`  
+   归档计划生成。
+10. `baidupan-verify`  
+   manifest 前置验证。
+11. `baidupan-batch-runner`  
+   manifest 汇总、合并、runbook。
+12. `baidupan-apply`  
+   manifest 执行器，默认预览，显式确认后执行。
 
-在项目根目录执行时，推荐直接用相对路径调用脚本。
+另外提供一个总 skill：
 
-### 打包给 Linux 使用
+- `baidupan-suite`  
+  统一路由上述工具，适合给 Codex 挂载成单个入口 skill。
 
-在当前 Windows 项目根目录执行：
+## 设计原则
+
+- 先分析，再修复
+- 先生成 manifest，再执行
+- 删除类动作统一先转成归档
+- 默认预览，只有显式确认才真正修改远端
+- 兼容 Windows / Linux
+
+## 目录结构
+
+```text
+baidupan-skill-suite/
+├── baidupan-suite/            # Codex 总 skill
+├── bypy-enhanced/             # 浏览 / 搜索 / 下载 / 上传
+├── baidupan-monitor/          # 快照 / 比较 / tree
+├── baidupan-reconcile/        # 差异对账
+├── baidupan-fs/               # 远端整理规划
+├── baidupan-archive/          # 归档计划
+├── baidupan-verify/           # manifest 验证
+├── baidupan-apply/            # manifest 执行器
+├── baidupan-index/            # 离线索引
+├── baidupan-sync/             # 同步规划
+├── baidupan-cleanup/          # 清理分析
+├── baidupan-batch-runner/     # runbook / merge
+├── common/                    # 共享运行时 / inventory / manifest
+├── scripts/                   # 打包 / 安装 / 更新脚本
+└── docs/plans/                # 设计说明
+```
+
+## 依赖
+
+- Python 3.8+
+- `requests`
+- `bypy`
+
+最小依赖文件见：
+
+- [requirements.min.txt](./requirements.min.txt)
+
+## Token 规则
+
+所有 Python 脚本统一按以下优先级查找 token：
+
+1. `BYPY_TOKEN_FILE`
+2. `~/.bypy/bypy.token.json`
+3. `~/.bypy/bypy.json`
+4. 当前工作目录 `./bypy.token.json`
+5. 当前工作目录 `./bypy.json`
+6. 工具根目录下的 `bypy.token.json`
+7. 工具根目录下的 `bypy.json`
+
+注意：
+
+- `bypy.token.json`、`bypy.json` 不应提交到 Git 仓库
+- token 文件按 `utf-8-sig` 读取，兼容 Windows BOM
+
+## 快速开始
+
+### 1. 在本地运行
+
+创建最小虚拟环境：
+
+```bash
+python ./scripts/bootstrap_min_venv.py
+```
+
+Windows 示例：
+
+```powershell
+.\.venv\Scripts\python.exe .\bypy-enhanced\scripts\bdpan_enhanced.py info
+.\.venv\Scripts\python.exe .\baidupan-reconcile\scripts\bdpan_reconcile.py --help
+```
+
+Linux 示例：
+
+```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
+./.venv/bin/python ./baidupan-reconcile/scripts/bdpan_reconcile.py --help
+```
+
+### 2. 打包给 Linux 使用
+
+生成 Linux 包：
 
 ```powershell
 python .\scripts\package_linux_bundle.py
 ```
 
-会生成一个 `dist/*.tar.gz`，默认不包含 `bypy.token.json`。
+默认输出到：
 
-如果你确认要把当前 token 一起打进包：
-
-```powershell
-python .\scripts\package_linux_bundle.py --include-token
+```text
+dist/baidupan-tools-linux-YYYYMMDD-HHMMSS.tar.gz
 ```
 
-默认不建议这么做，除非这个包只在你自己的 Linux 机器之间传递。
+默认不包含 token。
 
-### Linux 端安装步骤
-
-把打好的 `tar.gz` 传到 Linux 后：
+### 3. Linux 端安装
 
 ```bash
 mkdir -p ~/tools
@@ -56,77 +149,49 @@ cd ~/tools/baidupan-tools
 python3 ./scripts/bootstrap_min_venv.py
 ```
 
-也可以直接运行：
+或者直接：
 
 ```bash
 bash ./scripts/install_linux.sh
 ```
 
-如果包里没有 token，把你当前可用的 token 放到以下任一位置：
+### 4. Linux 端一键更新
 
-1. `~/.bypy/bypy.token.json`
-2. `~/.bypy/bypy.json`
-3. 项目根目录 `./bypy.token.json`
-4. 项目根目录 `./bypy.json`
-
-Linux 常用命令：
-
-```bash
-./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
-./.venv/bin/python ./baidupan-monitor/scripts/bdpan_monitor.py --help
-./.venv/bin/python ./baidupan-reconcile/scripts/bdpan_reconcile.py --help
-./.venv/bin/python ./baidupan-apply/scripts/bdpan_apply.py --help
-```
-
-### Linux 端一键更新
-
-如果 Linux 上已经有旧版 `~/tools/baidupan-tools`，推荐上传：
+上传：
 
 - 最新 `dist/*.tar.gz`
 - `scripts/update_linux_bundle.sh`
 
-然后在 Linux 上执行：
+然后执行：
 
 ```bash
-mkdir -p ~/upload
 bash ~/upload/update_linux_bundle.sh ~/upload/baidupan-tools-linux-YYYYMMDD-HHMMSS.tar.gz ~/tools
 ```
 
-这个更新脚本会做：
+这个脚本会：
 
 1. 备份旧目录
-2. 解压新包到 `~/tools/baidupan-tools`
-3. 恢复运行期数据：
-   - `bypy.token.json`
-   - `bypy.json`
-   - `.bdpan_snapshots`
-   - `.bypy_runtime`
-   - `.venv`
+2. 解压新包
+3. 恢复 `.venv`、`.bdpan_snapshots`、`.bypy_runtime`、token
 4. 重新跑 `bootstrap_min_venv.py`
-5. 刷新 `baidupan-suite` 到 `~/.codex/skills`
-6. 做一次 `info` 烟雾测试
+5. 刷新总 skill
+6. 做一次烟雾测试
 
-### 作为一个总 skill 给 Codex 使用
+## 作为一个总 skill 给 Codex 使用
 
-如果你只想让 Codex 识别一个总 skill，而不是 12 个子 skill，使用：
+推荐在 Linux 上安装总 skill：
 
 ```bash
 bash ~/tools/baidupan-tools/scripts/install_codex_suite_skill.sh
 ```
 
-这个脚本会把：
+这会创建：
 
 ```bash
-~/tools/baidupan-tools/baidupan-suite
+~/.codex/skills/baidupan-suite -> ~/tools/baidupan-tools/baidupan-suite
 ```
 
-软链接到：
-
-```bash
-~/.codex/skills/baidupan-suite
-```
-
-手动方式也可以：
+手动方式：
 
 ```bash
 mkdir -p ~/.codex/skills
@@ -135,226 +200,99 @@ ln -sfn ~/tools/baidupan-tools/baidupan-suite ~/.codex/skills/baidupan-suite
 
 然后新开一个 Codex 会话。
 
-推荐触发方式：
+推荐触发词：
 
 - `用 baidupan-suite 查看百度网盘根目录`
+- `用 baidupan-suite 监视 /开智/录屏整理`
 - `用 baidupan-suite 比较本地目录和 /开智/录屏整理`
 - `用 baidupan-suite 预览 archive manifest`
 
-### 最小虚拟环境
+## 典型工作流
 
-当前项目已经创建了项目内虚拟环境 `.venv`，并验证可以直接运行核心脚本。
-
-Windows PowerShell:
-```powershell
-.\.venv\Scripts\python.exe .\bypy-enhanced\scripts\bdpan_enhanced.py info
-.\.venv\Scripts\python.exe .\bypy-baidu-netdisk\scripts\bypy_cmd.py info
-```
-
-Linux / macOS:
-```bash
-./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
-./.venv/bin/python ./bypy-baidu-netdisk/scripts/bypy_cmd.py info
-```
-
-如果要重新创建最小环境，使用：
+### 1. 浏览与传输
 
 ```bash
-python ./scripts/bootstrap_min_venv.py
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py list /
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py tree /开智 -d 2
 ```
 
-最小依赖清单见 `requirements.min.txt`，当前只包含：
+### 2. 监视与结构比较
 
-- `requests`
-- `bypy`
-
-Linux / macOS:
 ```bash
-python ./bypy-enhanced/scripts/bdpan_enhanced.py info
-python ./bypy-enhanced/scripts/bdpan_enhanced.py list /
-python ./bypy-enhanced/scripts/bdpan_enhanced.py upload ./local.txt /网盘路径/
-python ./bypy-enhanced/scripts/bdpan_enhanced.py download /网盘/文件.txt ./downloads/
+./.venv/bin/python ./baidupan-monitor/scripts/bdpan_monitor.py init /开智/录屏整理 --name kaizhi-recordings
+./.venv/bin/python ./baidupan-monitor/scripts/bdpan_monitor.py compare /开智/录屏整理 视频整理 音频 --name kaizhi-recordings --ignore-extension --output compare.txt
 ```
 
-Windows PowerShell:
-```powershell
-python .\bypy-enhanced\scripts\bdpan_enhanced.py info
-python .\bypy-enhanced\scripts\bdpan_enhanced.py list /
-python .\bypy-enhanced\scripts\bdpan_enhanced.py upload .\local.txt /网盘路径/
-python .\bypy-enhanced\scripts\bdpan_enhanced.py download /网盘/文件.txt .\downloads\
+### 3. 差异对账
+
+```bash
+./.venv/bin/python ./baidupan-reconcile/scripts/bdpan_reconcile.py compare-local ./local-dir /开智/录屏整理 --ignore-extension --output report.txt --json-output report.json
+./.venv/bin/python ./baidupan-reconcile/scripts/bdpan_reconcile.py folder-summary report.json --output folders.txt
+./.venv/bin/python ./baidupan-reconcile/scripts/bdpan_reconcile.py partial-files report.json --output partial-files.txt
 ```
 
-如果你已经把技能包安装到其他目录，直接把上面的相对路径替换成实际安装路径即可。
+### 4. 归档优先的执行链
 
-### 支持的命令
-- `info` - 查看网盘容量
-- `list` - 列出目录（显示时间戳）
-- `tree` - 树形显示目录结构
-- `search` - 搜索文件
-- `stats` - 统计目录大小
-- `delete` - 删除文件/目录
-- `download` - 下载单文件（支持断点续传）
-- `upload` - 上传文件（支持分片上传）
-- `batch-download` - 批量下载整个目录
+```bash
+./.venv/bin/python ./baidupan-archive/scripts/bdpan_archive.py from-report report.json --source right --archive-root /归档整理 --output archive.json
+./.venv/bin/python ./baidupan-verify/scripts/bdpan_verify.py manifest archive.json
+./.venv/bin/python ./baidupan-apply/scripts/bdpan_apply.py manifest archive.json
+./.venv/bin/python ./baidupan-apply/scripts/bdpan_apply.py manifest archive.json --execute --yes --log apply-log.json
+./.venv/bin/python ./baidupan-batch-runner/scripts/bdpan_batch_runner.py runbook archive.json --output runbook.txt
+```
 
-### 新增的二级技能
+## 安全说明
 
-- `baidupan-monitor`
-  - `init` / `check` / `diff` / `update` / `watch` / `tree` / `compare`
-- `baidupan-sync`
-  - `plan-up` / `plan-down` / `commands-up` / `commands-down`
-- `baidupan-cleanup`
-  - `large-files` / `stale-files` / `suffix-report` / `duplicate-candidates` / `empty-dirs`
-- `baidupan-reconcile`
-  - `compare-local` / `compare-remote` / `folder-summary` / `partial-files`
-- `baidupan-fs`
-  - `mkdir-plan` / `move-plan` / `copy-plan` / `rename-plan` / `archive-plan`
-- `baidupan-index`
-  - `build-local` / `build-remote` / `query` / `stats`
-- `baidupan-archive`
-  - `direct-paths` / `from-report`
-- `baidupan-verify`
-  - `manifest`
-- `baidupan-batch-runner`
-  - `summary` / `merge` / `runbook`
-- `baidupan-apply`
-  - `manifest`
+- 不要把 token、快照、运行时目录、虚拟环境提交到 Git
+- `baidupan-apply` 默认是预览模式
+- 删除类动作应先转换成 `archive_remote`
+- 如果你要做真实移动或归档，先跑 `verify`
 
-## Token 配置
+## 发布产物
 
-所有 Python 脚本现在统一按以下优先级查找 token：
+打包脚本：
 
-1. 环境变量 `BYPY_TOKEN_FILE`
-2. `~/.bypy/bypy.token.json`
-3. `~/.bypy/bypy.json`
-4. 当前工作目录下的 `./bypy.token.json`
-5. 当前工作目录下的 `./bypy.json`
-6. 项目根目录下的 `bypy.token.json`
-7. 项目根目录下的 `bypy.json`
+- [scripts/package_linux_bundle.py](./scripts/package_linux_bundle.py)
+- [scripts/make_release.py](./scripts/make_release.py)
 
-这意味着当前目录下的 `./bypy.token.json` 现在可以直接使用，优先级低于原始默认位置 `~/.bypy/bypy.token.json`。
+更新脚本：
 
-对于依赖 `bypy` 库的包装脚本，项目会把命中的 token 规范化到一个显式 `configdir` 中，再用 `ByPy(configdir=...)` 启动。默认使用当前工作目录下的 `.bypy_runtime/`，也可以通过 `BYPY_CONFIG_DIR` 指定。这样不会依赖 `~/.bypy` 的写权限。
+- [scripts/update_linux_bundle.sh](./scripts/update_linux_bundle.sh)
 
-token 文件按 `utf-8-sig` 读取，能够兼容常见的 UTF-8 BOM 情况。
+总 skill 安装脚本：
 
-如果 token 过期，需要重新认证。
+- [scripts/install_codex_suite_skill.sh](./scripts/install_codex_suite_skill.sh)
 
-## 编码与路径兼容
+## 版本发布
 
-- 所有 Python 脚本会在可用时把 stdout/stderr 重设为 UTF-8，降低 Windows 终端乱码概率
-- 本地路径统一使用 `pathlib` / `os.path` 处理
-- 网盘路径继续统一使用 `/` 作为远端路径分隔符
-- 同步脚本生成建议命令时会按当前操作系统选择合适的 Python 可执行文件和命令行转义方式
+当前版本：
 
-## 监视对象附加能力
+- `v0.1.0`
 
-`baidupan-monitor` 现在会把快照视为一个可查询对象，支持：
-
-- `tree`
-  - 从已有快照中展开任意分支的完整目录结构
-  - 支持 `--output` 保存到文件
-- `compare`
-  - 比较同一监视根目录下两个分支的相对结构
-  - 支持 `--ignore-extension`，适合比较视频目录和音频目录的结构是否一致
-  - 支持 `--output` 保存结果到文件
-
-示例：
+生成版本化 release 产物：
 
 ```powershell
-.\.venv\Scripts\python.exe .\baidupan-monitor\scripts\bdpan_monitor.py tree /开智/录屏整理 --name kaizhi-recordings --branch 视频整理 --output .\tree.txt
-.\.venv\Scripts\python.exe .\baidupan-monitor\scripts\bdpan_monitor.py compare /开智/录屏整理 视频整理 音频 --name kaizhi-recordings --ignore-extension --output .\compare.txt
+python .\scripts\make_release.py
 ```
 
-## 新增二级工具
+会在 `dist/` 下生成：
 
-### 1. 对账
+- `baidupan-skill-suite-v0.1.0-linux.tar.gz`
+- `baidupan-skill-suite-v0.1.0-linux.sha256`
+- `baidupan-skill-suite-v0.1.0-release-notes.md`
 
-`baidupan-reconcile` 负责差异化比较，重点是清晰、可视、可保存的结果。
+## 设计文档
 
-```powershell
-.\.venv\Scripts\python.exe .\baidupan-reconcile\scripts\bdpan_reconcile.py compare-local .\local-dir /网盘/目录 --ignore-extension --output .\report.txt --json-output .\report.json
-.\.venv\Scripts\python.exe .\baidupan-reconcile\scripts\bdpan_reconcile.py compare-remote /网盘/左分支 /网盘/右分支 --ignore-extension --output .\report.txt --json-output .\report.json
-.\.venv\Scripts\python.exe .\baidupan-reconcile\scripts\bdpan_reconcile.py folder-summary .\report.json --output .\folders.txt --json-output .\folders.json
-.\.venv\Scripts\python.exe .\baidupan-reconcile\scripts\bdpan_reconcile.py partial-files .\report.json --output .\partial-files.txt --json-output .\partial-files.json
-```
+- [2026-04-22-baidu-netdisk-skill-design.md](./docs/plans/2026-04-22-baidu-netdisk-skill-design.md)
+- [2026-04-22-secondary-tools-design.md](./docs/plans/2026-04-22-secondary-tools-design.md)
+- [2026-04-23-baidupan-apply-design.md](./docs/plans/2026-04-23-baidupan-apply-design.md)
 
-### 2. 文件系统规划
+## 发布说明
 
-`baidupan-fs` 只生成 manifest，不直接执行远端修改。删除类动作统一转换成归档计划。
+- [v0.1.0](./docs/releases/v0.1.0.md)
 
-```powershell
-.\.venv\Scripts\python.exe .\baidupan-fs\scripts\bdpan_fs.py archive-plan /待归档/路径 --archive-root /归档整理 --output .\archive.json
-```
+## 许可证
 
-### 3. 索引
+仓库包含：
 
-`baidupan-index` 用于减少重复扫描。
-
-```powershell
-.\.venv\Scripts\python.exe .\baidupan-index\scripts\bdpan_index.py build-remote /开智/录屏整理 --output .\recordings-index.json --include-dirs
-.\.venv\Scripts\python.exe .\baidupan-index\scripts\bdpan_index.py query .\recordings-index.json 智慧的大聪明 --limit 20
-```
-
-### 4. 归档 / 验证 / 批处理
-
-```powershell
-.\.venv\Scripts\python.exe .\baidupan-archive\scripts\bdpan_archive.py from-report .\report.json --source right --archive-root /归档整理 --output .\archive.json
-.\.venv\Scripts\python.exe .\baidupan-verify\scripts\bdpan_verify.py manifest .\archive.json
-.\.venv\Scripts\python.exe .\baidupan-apply\scripts\bdpan_apply.py manifest .\archive.json
-.\.venv\Scripts\python.exe .\baidupan-apply\scripts\bdpan_apply.py manifest .\archive.json --execute --yes --log .\apply-log.json
-.\.venv\Scripts\python.exe .\baidupan-batch-runner\scripts\bdpan_batch_runner.py runbook .\archive.json --output .\runbook.txt
-```
-
-### 5. 执行器
-
-`baidupan-apply` 是当前唯一会真正执行远端变更的工具，但它默认仍是预览模式。
-
-- 默认：只展示 manifest 预览
-- 执行：必须显式传入 `--execute --yes`
-- 当前仅支持：
-  - `archive_remote`
-  - `mkdir_remote`
-  - `move_remote`
-  - `rename_remote`
-- 不支持：
-  - `copy_remote`
-  - 任何直接删除动作
-
-建议顺序：
-
-1. `reconcile` 产出差异报告
-2. `archive` 或 `fs` 产出 manifest
-3. `verify` 检查 source/target
-4. `apply` 先预览
-5. `apply --execute --yes` 执行
-6. `batch-runner runbook` 留档
-
-## 依赖
-
-- Python 3.8+
-- requests
-- bypy
-
-## 更新记录
-
-### 2026-04-22
-- 添加 upload 上传功能
-- 添加 batch-download 批量下载
-- 增强 list 输出（显示时间戳）
-- 完成 baidupan-monitor 监控技能
-- 新增 baidupan-sync 同步规划技能
-- 新增 baidupan-cleanup 清理分析技能
-- 重写总控 skill，使其支持技能路由
-- 新增统一运行时，支持 Windows / Linux 跨平台路径与编码处理
-- 统一支持当前工作目录下的 `bypy.token.json` 作为低优先级 token 来源
-- 新增 baidupan-reconcile，对焦本地 / 网盘、网盘 / 网盘差异化比较
-- 新增 baidupan-fs，以 manifest 形式规划 mkdir / move / rename / copy / archive
-- 新增 baidupan-index，用于导出离线索引并查询
-- 新增 baidupan-archive / baidupan-verify / baidupan-batch-runner，串联归档、验证和批处理 runbook
-- 新增 baidupan-apply，支持在显式确认下执行 archive/mkdir/move/rename manifest
-
-### 2026-04-23
-- 新增 baidupan-apply 执行器，默认预览，`--execute --yes` 才真正执行
-- 新增 reconcile 的 `folder-summary` 和 `partial-files` 结果视图
-- 修复 manifest 在 Windows BOM 编码下的读取兼容性
+- [LICENSE](./LICENSE)
