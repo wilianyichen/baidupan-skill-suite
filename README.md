@@ -102,6 +102,10 @@ baidupan-skill-suite/
 
 ## 快速开始
 
+详细 Linux 安装与升级步骤见：
+
+- [docs/guides/linux-install-and-upgrade.md](./docs/guides/linux-install-and-upgrade.md)
+
 ### 1. 在本地运行
 
 创建最小虚拟环境：
@@ -263,6 +267,10 @@ ln -sfn ~/tools/baidupan-tools/baidupan-suite ~/.codex/skills/baidupan-suite
 
 - [scripts/install_codex_suite_skill.sh](./scripts/install_codex_suite_skill.sh)
 
+详细 Linux 安装与升级指南：
+
+- [docs/guides/linux-install-and-upgrade.md](./docs/guides/linux-install-and-upgrade.md)
+
 ## 版本发布
 
 当前版本：
@@ -290,6 +298,7 @@ python .\scripts\make_release.py
 ## 发布说明
 
 - [v0.1.0](./docs/releases/v0.1.0.md)
+- [v0.1.0 GitHub Release Copy](./docs/releases/v0.1.0-github-release.md)
 
 ## 许可证
 
