@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from common.bdpan_runtime import configure_runtime, describe_token_search_order, load_access_token
+from common.bdpan_runtime import configure_requests_session, configure_runtime, describe_token_search_order, load_access_token, request_timeout
 from merkle_tree import build_dir_node, build_file_node, diff_snapshots
 from snapshot import MonitoredSnapshot, resolve_snapshot_path
 
@@ -57,7 +57,7 @@ class BaiduPanClient:
     def list_dir(self, remote_path: str) -> list[dict]:
         remote_path = normalize_remote_path(remote_path)
         session = requests.Session()
-        session.trust_env = False
+        configure_requests_session(session)
         start = 0
         limit = 1000
         items: list[dict] = []
@@ -72,7 +72,7 @@ class BaiduPanClient:
                     "start": start,
                     "limit": limit,
                 }
-                response = session.get(LIST_URL, params=params, headers=HEADERS, timeout=30)
+                response = session.get(LIST_URL, params=params, headers=HEADERS, timeout=request_timeout(30))
                 response.raise_for_status()
                 payload = response.json()
 

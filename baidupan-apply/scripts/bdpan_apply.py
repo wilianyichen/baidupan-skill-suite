@@ -18,7 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from common.bdpan_inventory import BaiduPanInventoryClient, format_mtime, normalize_remote_path
 from common.bdpan_manifest import now_iso, read_json, render_manifest_summary, write_json
-from common.bdpan_runtime import configure_runtime, describe_token_search_order, load_access_token
+from common.bdpan_runtime import configure_requests_session, configure_runtime, describe_token_search_order, load_access_token, request_timeout
 
 
 HEADERS = {"User-Agent": "netdisk;P2SP;3.0.20.80"}
@@ -51,7 +51,7 @@ class RemoteMutator:
         self.token = token
         self.inventory = BaiduPanInventoryClient(token)
         self.session = requests.Session()
-        self.session.trust_env = False
+        configure_requests_session(self.session)
         self.mkdir_cache: set[str] = set()
 
     def close(self) -> None:
@@ -59,7 +59,7 @@ class RemoteMutator:
 
     def _post_pcs(self, method: str, **params) -> dict:
         payload = {"method": method, "access_token": self.token, **params}
-        response = self.session.post(PCS_FILE_URL, params=payload, headers=HEADERS, timeout=30)
+        response = self.session.post(PCS_FILE_URL, params=payload, headers=HEADERS, timeout=request_timeout(30))
         response.raise_for_status()
         return response.json()
 
@@ -69,7 +69,7 @@ class RemoteMutator:
             "async": "0",
             "filelist": json.dumps(filelist, ensure_ascii=False),
         }
-        response = self.session.post(XPAN_FILE_URL, params=params, data=data, headers=HEADERS, timeout=30)
+        response = self.session.post(XPAN_FILE_URL, params=params, data=data, headers=HEADERS, timeout=request_timeout(30))
         response.raise_for_status()
         return response.json()
 
