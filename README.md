@@ -127,6 +127,24 @@ baidupan-skill-suite/
 python ./scripts/bootstrap_min_venv.py
 ```
 
+推荐首次先跑自检：
+
+```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py doctor
+```
+
+如果提示尚未授权，先运行：
+
+```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth
+```
+
+它会打印浏览器授权链接。拿到 Authorization Code 后执行：
+
+```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth --code <AUTH_CODE>
+```
+
 Windows 示例：
 
 ```powershell
@@ -194,18 +212,21 @@ bash ~/upload/update_linux_bundle.sh ~/upload/baidupan-tools-linux-YYYYMMDD-HHMM
 5. 刷新总 skill
 6. 做一次烟雾测试
 
-## 作为一个总 skill 给 Codex 使用
+## 作为一个总 skill 给 Codex / Claude 使用
 
 推荐在 Linux 上安装总 skill：
 
 ```bash
-bash ~/tools/baidupan-tools/scripts/install_codex_suite_skill.sh
+bash ./scripts/install_codex_suite_skill.sh
+bash ./scripts/install_claude_suite_skill.sh
 ```
 
 这会创建：
 
 ```bash
 ~/.codex/skills/baidupan-suite -> ~/tools/baidupan-tools/baidupan-suite
+~/.claude/skills/baidupan-suite -> ~/tools/baidupan-tools/baidupan-suite
+~/.claude/skills/common -> ~/tools/baidupan-tools/common
 ```
 
 手动方式：
@@ -229,6 +250,9 @@ ln -sfn ~/tools/baidupan-tools/baidupan-suite ~/.codex/skills/baidupan-suite
 ### 1. 浏览与传输
 
 ```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py doctor
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth --code <AUTH_CODE>
 ./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
 ./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py whoami
 ./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py list /
@@ -271,6 +295,32 @@ ln -sfn ~/tools/baidupan-tools/baidupan-suite ~/.codex/skills/baidupan-suite
 - `baidupan-apply` 默认是预览模式
 - 删除类动作应先转换成 `archive_remote`
 - 如果你要做真实移动或归档，先跑 `verify`
+
+## 新设备测试分支流程
+
+假设你要在新设备测试 `agent-ready-packaging` 分支：
+
+```bash
+git clone --branch agent-ready-packaging https://github.com/wilianyichen/baidupan-skill-suite.git
+cd baidupan-skill-suite
+python3 scripts/bootstrap_min_venv.py
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py doctor
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py auth --code <AUTH_CODE>
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py whoami
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py du /.vs
+./.venv/bin/python ./baidupan-index/scripts/bdpan_index.py build-remote /.vs --include-dirs --output /tmp/bdpan-index.json
+./.venv/bin/python ./baidupan-cleanup/scripts/bdpan_cleanup.py suffix-report /.vs --top 3
+```
+
+如果仓库已经 clone 过：
+
+```bash
+git fetch origin
+git checkout agent-ready-packaging
+git pull origin agent-ready-packaging
+```
 
 ## 发布产物
 

@@ -203,6 +203,13 @@ def prepare_bypy_config_dir(script_file: str) -> Path:
     return config_dir
 
 
+def project_python(script_file: str) -> Path:
+    root = get_repo_root(script_file)
+    if os.name == "nt":
+        return root / ".venv" / "Scripts" / "python.exe"
+    return root / ".venv" / "bin" / "python"
+
+
 def python_command() -> str:
     return sys.executable or "python"
 

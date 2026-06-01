@@ -24,6 +24,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 
 import requests
 
@@ -33,9 +34,7 @@ except ImportError:
     from bdpan_runtime import configure_requests_session, request_timeout
 
 # ── 百度 OAuth 常量 ──────────────────────────────────────────────
-# 与 bypy 内置的一致，不走 bypy 服务器代理，直接调百度 API
-CLIENT_ID = "q8WE4EpCsau1oS0MplgMKNBn"
-CLIENT_SECRET = "PA4MhwB5RE7DacKtoP2i8ikCnNzAqYTD"
+# 优先使用环境变量，其次复用 bypy 包内的应用配置，避免在仓库中硬编码凭据。
 TOKEN_URL = "https://openapi.baidu.com/oauth/2.0/token"
 
 # 过期前多少秒开始视为"需要刷新"（默认提前 5 天）
@@ -48,6 +47,26 @@ BYPY_NATIVE_FILENAME = "bypy.json"
 
 def _repo_root(script_file: str) -> Path:
     return Path(script_file).resolve().parents[2]
+
+
+def oauth_app_credentials() -> tuple[str, str]:
+    client_id = os.environ.get("BAIDU_API_KEY")
+    client_secret = os.environ.get("BAIDU_API_SECRET")
+    if client_id and client_secret:
+        return client_id, client_secret
+
+    try:
+        from bypy import const as bypy_const
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "未找到 BAIDU_API_KEY / BAIDU_API_SECRET，且当前环境未安装 bypy，无法解析 OAuth 应用配置"
+        ) from exc
+
+    client_id = getattr(bypy_const, "ApiKey", "")
+    client_secret = getattr(bypy_const, "SecretKey", "")
+    if not client_id or not client_secret:
+        raise RuntimeError("无法从环境变量或 bypy 常量解析 OAuth 应用配置")
+    return client_id, client_secret
 
 
 def _all_token_paths(script_file: str) -> list[Path]:
@@ -129,8 +148,8 @@ def refresh_access_token(script_file: str) -> dict:
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": old_refresh_token,
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_id": oauth_app_credentials()[0],
+        "client_secret": oauth_app_credentials()[1],
     }
 
     session = requests.Session()
@@ -160,6 +179,53 @@ def refresh_and_save(script_file: str) -> dict:
     )
     new_data["_written"] = written
     return new_data
+
+
+def authorization_url() -> str:
+    client_id, _ = oauth_app_credentials()
+    query = urlencode(
+        {
+            "client_id": client_id,
+            "response_type": "code",
+            "redirect_uri": "oob",
+            "scope": "basic netdisk",
+        }
+    )
+    return f"https://openapi.baidu.com/oauth/2.0/authorize?{query}"
+
+
+def exchange_authorization_code(code: str) -> dict:
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": oauth_app_credentials()[0],
+        "client_secret": oauth_app_credentials()[1],
+        "redirect_uri": "oob",
+    }
+    session = requests.Session()
+    configure_requests_session(session)
+    resp = session.post(TOKEN_URL, data=payload, timeout=request_timeout(30))
+    result = resp.json()
+    if resp.status_code != 200 or "error" in result:
+        error_desc = result.get("error_description", result.get("error", "未知错误"))
+        raise RuntimeError(f"授权码换 token 失败: {error_desc}")
+    return {
+        "access_token": result["access_token"],
+        "refresh_token": result["refresh_token"],
+        "expires_in": result.get("expires_in", 2592000),
+    }
+
+
+def authorize_and_save(script_file: str, code: str) -> dict:
+    token_data = exchange_authorization_code(code)
+    written = save_token(
+        script_file,
+        access_token=token_data["access_token"],
+        refresh_token=token_data["refresh_token"],
+        expires_in=token_data["expires_in"],
+    )
+    token_data["_written"] = written
+    return token_data
 
 
 def check_status(script_file: str) -> dict:
@@ -246,7 +312,31 @@ def main() -> None:
         "--force", action="store_true",
         help="即使 token 未过期也强制刷新",
     )
+    parser.add_argument(
+        "--auth-code",
+        help="用浏览器授权返回的 Authorization Code 直接换取 token 并保存",
+    )
+    parser.add_argument(
+        "--print-auth-url", action="store_true",
+        help="打印浏览器授权链接",
+    )
     args = parser.parse_args()
+
+    if args.print_auth_url:
+        print(authorization_url())
+        return
+
+    if args.auth_code:
+        try:
+            result = authorize_and_save(args.script_file, args.auth_code)
+            print("✅ 授权成功，token 已写入：")
+            for p in result["_written"]:
+                print(f"  - {p}")
+            print(f"  expires_in: {result['expires_in']} 秒 ({result['expires_in'] // 86400} 天)")
+            return
+        except RuntimeError as e:
+            print(f"❌ 授权失败: {e}")
+            sys.exit(1)
 
     if args.check_only:
         status = check_status(args.script_file)

@@ -36,6 +36,7 @@ from common.bdpan_runtime import (  # noqa: E402
     configure_runtime,
     describe_token_search_order,
     load_access_token,
+    project_python,
     request_timeout,
 )
 
@@ -263,6 +264,116 @@ def cmd_whoami(args: argparse.Namespace) -> int:
     print(f"UK：{info.get('uk', '-')}")
     print(f"VIP 类型：{info.get('vip_type', '-')}")
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """检查当前环境是否已具备运行条件。"""
+    issues: list[str] = []
+    warnings: list[str] = []
+    suite_root = REPO_ROOT
+    python_path = project_python(__file__)
+    current_python = Path(sys.executable).resolve()
+    print("🩺 百度网盘工具自检")
+    print("=" * 60)
+    print(f"suite_root: {suite_root}")
+    print(f"recommended_python: {python_path}")
+    print(f"current_python: {current_python}")
+    print(f"proxy_mode: {os.environ.get('BDPAN_PROXY_MODE', 'auto')}")
+
+    if python_path.exists():
+        print("✅ 推荐虚拟环境 Python 存在")
+    elif current_python.exists() and current_python.name.startswith('python'):
+        warnings.append(f"未找到仓库内 .venv，当前将使用外部 Python：{current_python}")
+    else:
+        issues.append(f"未找到可用 Python：推荐路径 {python_path} 不存在")
+
+    try:
+        token = get_token()
+        print("✅ 已找到 token 文件")
+        print(f"   access_token length: {len(token)}")
+    except SystemExit:
+        issues.append("未找到可用 token")
+
+    try:
+        from common.bdpan_refresh import authorization_url, check_status
+
+        status = check_status(__file__)
+        print(f"token_status: {status['status']}")
+        if status.get('expires_at'):
+            print(f"token_expires_at: {status['expires_at']}")
+        if status['status'] in {'expired', 'expiring_soon', 'missing', 'no_refresh_token'}:
+            warnings.append(f"token 状态为 {status['status']}")
+        print(f"auth_url: {authorization_url()}")
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"无法检查 token 状态：{exc}")
+
+    claude_skill_dir = Path.home() / '.claude' / 'skills' / 'baidupan-suite'
+    if claude_skill_dir.exists():
+        print(f"✅ 检测到 Claude skill: {claude_skill_dir}")
+    else:
+        warnings.append(f"未检测到 Claude skill 安装：{claude_skill_dir}")
+
+    codex_skill_dir = Path.home() / '.codex' / 'skills' / 'baidupan-suite'
+    if codex_skill_dir.exists():
+        print(f"✅ 检测到 Codex skill: {codex_skill_dir}")
+    else:
+        warnings.append(f"未检测到 Codex skill 安装：{codex_skill_dir}")
+
+    if warnings:
+        print()
+        print("⚠️ 警告")
+        for item in warnings:
+            print(f"- {item}")
+
+    if issues:
+        print()
+        print("❌ 阻塞项")
+        for item in issues:
+            print(f"- {item}")
+        print()
+        print("建议：")
+        print(f"- 如未创建虚拟环境，先运行: python3 {suite_root / 'scripts' / 'bootstrap_min_venv.py'}")
+        print(f"- 再运行: {project_python(__file__)} {suite_root / 'bypy-enhanced' / 'scripts' / 'bdpan_enhanced.py'} auth")
+        return 1
+
+    print()
+    print("✅ 自检通过")
+    return 0
+
+
+def cmd_auth(args: argparse.Namespace) -> int:
+    """打印授权链接或用授权码换 token，并执行最小验证。"""
+    from common.bdpan_refresh import authorize_and_save, authorization_url, check_status
+
+    print("🔐 百度网盘授权向导")
+    print("=" * 60)
+    print("1. 在浏览器打开下面链接并授权：")
+    print(authorization_url())
+    print("2. 拿到 Authorization Code 后再次执行：")
+    print(f"   {project_python(__file__)} {Path(__file__).resolve()} auth --code <YOUR_CODE>")
+
+    if not args.code:
+        status = check_status(__file__)
+        print()
+        print(f"当前 token 状态：{status['status']}")
+        return 0
+
+    try:
+        result = authorize_and_save(__file__, args.code.strip())
+    except RuntimeError as exc:
+        print(f"❌ 授权失败：{exc}")
+        return 1
+
+    print("✅ 授权成功，token 已写入：")
+    for path in result['_written']:
+        print(f"- {path}")
+
+    print()
+    print("正在做最小验证...")
+    if cmd_whoami(argparse.Namespace()) != 0:
+        return 1
+    print()
+    return cmd_info(argparse.Namespace())
 
 
 def cmd_list(args: argparse.Namespace) -> int:
@@ -652,6 +763,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("info", help="显示账户容量信息").set_defaults(func=cmd_info)
     subparsers.add_parser("whoami", help="显示当前授权用户").set_defaults(func=cmd_whoami)
+    subparsers.add_parser("doctor", help="检查环境、token 与 skill 安装状态").set_defaults(func=cmd_doctor)
+
+    auth_parser = subparsers.add_parser("auth", help="打印授权链接或用授权码换 token")
+    auth_parser.add_argument("--code", help="浏览器授权后返回的 Authorization Code")
+    auth_parser.set_defaults(func=cmd_auth)
 
     list_parser = subparsers.add_parser("list", help="列出目录")
     list_parser.add_argument("path", nargs="?", default="/")
