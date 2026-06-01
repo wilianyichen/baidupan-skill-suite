@@ -11,6 +11,8 @@ from typing import Dict
 
 import requests
 
+from .bdpan_runtime import configure_requests_session, request_timeout
+
 
 HEADERS = {"User-Agent": "netdisk;P2SP;3.0.20.80"}
 LIST_URL = "https://pan.baidu.com/rest/2.0/xpan/file"
@@ -50,14 +52,33 @@ def should_include(rel_path: str, includes: list[str] | None = None, excludes: l
     return include_match and not exclude_match
 
 
+def file_suffix(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    return suffix if suffix else "[no-ext]"
+
+
 class BaiduPanInventoryClient:
     def __init__(self, token: str):
         self.token = token
 
+    def _client(self):
+        from .bdpan_client import BaiduNetdiskClient
+
+        client = BaiduNetdiskClient(__file__)
+        client.token = self.token
+        return client
+
+    def iter_listall(self, remote_path: str, *, recursion: bool = True):
+        client = self._client()
+        try:
+            yield from client.iter_listall(remote_path, recursion=recursion)
+        finally:
+            client.close()
+
     def list_dir(self, remote_path: str, missing_ok: bool = False) -> list[dict]:
         remote_path = normalize_remote_path(remote_path)
         session = requests.Session()
-        session.trust_env = False
+        configure_requests_session(session)
         start = 0
         limit = 1000
         items: list[dict] = []
@@ -72,7 +93,7 @@ class BaiduPanInventoryClient:
                     "start": start,
                     "limit": limit,
                 }
-                response = session.get(LIST_URL, params=params, headers=HEADERS, timeout=30)
+                response = session.get(LIST_URL, params=params, headers=HEADERS, timeout=request_timeout(30))
                 response.raise_for_status()
                 payload = response.json()
                 errno = payload.get("errno", 0)
@@ -185,6 +206,19 @@ def build_local_tree(local_root: Path) -> dict:
     return root
 
 
+def remote_relative_path(remote_root: str, remote_path: str) -> str:
+    root = normalize_remote_path(remote_root).rstrip("/")
+    path = normalize_remote_path(remote_path)
+    if root == "":
+        return path.lstrip("/")
+    if path == root:
+        return ""
+    prefix = root + "/"
+    if path.startswith(prefix):
+        return path[len(prefix) :]
+    return path.lstrip("/")
+
+
 def tree_to_entries(root: dict, include_dirs: bool = True, include_files: bool = True) -> Dict[str, dict]:
     entries: Dict[str, dict] = {}
 
@@ -245,6 +279,27 @@ def scan_remote_entries(
     include_dirs: bool = True,
     include_files: bool = True,
 ) -> Dict[str, dict]:
-    tree = client.build_remote_tree(remote_root)
-    entries = tree_to_entries(tree, include_dirs=include_dirs, include_files=include_files)
-    return {path: entry for path, entry in entries.items() if should_include(path, includes, excludes)}
+    remote_root = normalize_remote_path(remote_root)
+    entries: Dict[str, dict] = {}
+    for item in client.iter_listall(remote_root, recursion=True):
+        is_dir = int(item.get("isdir", 0)) == 1
+        if is_dir and not include_dirs:
+            continue
+        if not is_dir and not include_files:
+            continue
+        rel_path = remote_relative_path(remote_root, item.get("path", ""))
+        if not rel_path or not should_include(rel_path, includes, excludes):
+            continue
+        name = item.get("server_filename", item.get("path", "").rsplit("/", 1)[-1])
+        entries[rel_path] = {
+            "relative_path": rel_path,
+            "absolute_path": normalize_remote_path(item.get("path", "")),
+            "name": name,
+            "type": "dir" if is_dir else "file",
+            "size": int(item.get("size", 0)) if not is_dir else 0,
+            "mtime": int(item.get("server_mtime", 0)),
+            "fs_id": item.get("fs_id"),
+            "category": item.get("category"),
+            "suffix": file_suffix(name) if not is_dir else "",
+        }
+    return entries

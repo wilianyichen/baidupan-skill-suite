@@ -20,6 +20,10 @@ BYPY_NATIVE_TOKEN_FILENAME = "bypy.json"
 BYPY_CONFIG_DIR_ENV = "BYPY_CONFIG_DIR"
 DEFAULT_BYPY_DIRNAME = ".bypy"
 BYPY_RUNTIME_DIRNAME = ".bypy_runtime"
+PROXY_MODE_ENV_VAR = "BDPAN_PROXY_MODE"
+PROXY_ENV_KEYS = ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy")
+DEFAULT_CONNECT_TIMEOUT = 10
+DEFAULT_READ_TIMEOUT = 60
 
 
 def configure_stdio() -> None:
@@ -34,16 +38,46 @@ def configure_stdio() -> None:
             continue
 
 
+def proxy_mode() -> str:
+    value = os.environ.get(PROXY_MODE_ENV_VAR, "auto").strip().lower()
+    if value in {"1", "true", "yes", "on", "proxy"}:
+        return "proxy"
+    if value in {"0", "false", "no", "off", "direct"}:
+        return "direct"
+    return "auto"
+
+
+def should_use_proxy_env() -> bool:
+    mode = proxy_mode()
+    if mode == "proxy":
+        return True
+    if mode == "direct":
+        return False
+    return any(os.environ.get(key) for key in PROXY_ENV_KEYS)
+
+
 def disable_proxy_env() -> None:
     """禁用代理环境变量，避免百度网盘 API 误走代理。"""
-    for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+    for key in PROXY_ENV_KEYS:
         os.environ[key] = ""
     os.environ["NO_PROXY"] = "*"
+    os.environ["no_proxy"] = "*"
+
+
+def configure_requests_session(session) -> None:
+    """统一 requests Session 的代理行为。"""
+    session.trust_env = should_use_proxy_env()
+
+
+def request_timeout(read_timeout: int | float = DEFAULT_READ_TIMEOUT) -> tuple[int, int | float]:
+    """统一 requests timeout，避免连接不可达时长时间挂起。"""
+    return (DEFAULT_CONNECT_TIMEOUT, read_timeout)
 
 
 def configure_runtime() -> None:
     configure_stdio()
-    disable_proxy_env()
+    if not should_use_proxy_env():
+        disable_proxy_env()
 
 
 def get_repo_root(script_file: str) -> Path:

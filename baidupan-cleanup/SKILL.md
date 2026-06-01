@@ -28,5 +28,7 @@ python ./baidupan-cleanup/scripts/bdpan_cleanup.py empty-dirs /网盘/目录
 ## 使用原则
 
 - 先扫描、后决策，不自动删除
+- 远端扫描现优先复用 `xpan/multimedia?method=listall`，减少逐目录 DFS
 - `duplicate-candidates` 是“同名同大小”的重复候选，不等于内容绝对相同
+- `empty-dirs` 在纯 listall 模式下无法稳定获取 dir_empty，当前会保守提示，不做激进空目录判定
 - 真要删文件时，再把结果交给总控 skill 或增强脚本处理

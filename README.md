@@ -17,7 +17,7 @@
 1. `bypy-baidu-netdisk`  
    基础认证与总控入口。
 2. `bypy-enhanced`  
-   增强版只读与传输工具。
+   增强版只读与传输工具，现支持 `whoami / du / metas / 原生 search`。
 3. `baidupan-monitor`  
    快照、diff、watch、tree、compare。
 4. `baidupan-sync`  
@@ -51,6 +51,19 @@
 - 删除类动作统一先转成归档
 - 默认预览，只有显式确认才真正修改远端
 - 兼容 Windows / Linux
+
+## v2 API 优化说明
+
+v2 版本把“展示结构”和“递归统计”拆开，并尽量优先使用百度原生 XPAN 接口：
+
+- `tree` 默认推荐 `--size none`，避免浅层浏览时递归扫完整个网盘
+- `du` 使用 `xpan/multimedia?method=listall` 递归分页统计目录大小
+- `stats` 使用 `listall` 做流式聚合统计，而不是逐目录 DFS
+- `search` 使用百度原生 `method=search`
+- `metas` / 批量元信息使用 `method=filemetas`
+- `whoami` 使用 `xpan/nas?method=uinfo`
+- 长时间 `du` 支持 checkpoint 文件，默认保存在 `.bypy_runtime/listall-checkpoints/`
+- 多路径 `du` 支持受控并行；单一路径的 `listall` cursor 分页保持顺序，不强行并行
 
 ## 目录结构
 
@@ -216,8 +229,15 @@ ln -sfn ~/tools/baidupan-tools/baidupan-suite ~/.codex/skills/baidupan-suite
 ### 1. 浏览与传输
 
 ```bash
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py info
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py whoami
 ./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py list /
-./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py tree /开智 -d 2
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py tree /开智 -d 2 --size none
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py tree /开智 -d 2 --size recursive
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py du /开智
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py du /开智 /学习 --concurrency 2
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py search Python / --limit 20
+./.venv/bin/python ./bypy-enhanced/scripts/bdpan_enhanced.py metas /Python\ 编程指南.pdf
 ```
 
 ### 2. 监视与结构比较
